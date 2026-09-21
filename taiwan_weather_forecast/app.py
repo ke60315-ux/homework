@@ -43,7 +43,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# F-C0032-005 目前在 REST API 會回 404，因此改用仍在提供的一週鄉鎮/縣市預報資料集。
 API_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-D0047-091"
 DATASET_ID = "F-D0047-091"
 
@@ -75,21 +74,24 @@ def norm_name(s):
 
 
 def extract_locations(payload):
-    records = payload.get("records", {}) if isinstance(payload, dict) else {}
-    groups = records.get("locations", [])
-    if isinstance(groups, dict):
-        groups = [groups]
-    out = []
-    if isinstance(groups, list):
-        for group in groups:
-            if not isinstance(group, dict):
-                continue
-            locs = group.get("location", [])
-            if isinstance(locs, dict):
-                locs = [locs]
-            if isinstance(locs, list):
-                out.extend([x for x in locs if isinstance(x, dict)])
-    return out
+    """兼容 CWA REST 舊/新版大小寫與 rawData 結構。"""
+    found = []
+
+    def walk(obj):
+        if isinstance(obj, dict):
+            name = obj.get("locationName") or obj.get("LocationName")
+            elements = obj.get("weatherElement") or obj.get("WeatherElement")
+            if name and elements:
+                found.append(obj)
+                return
+            for value in obj.values():
+                walk(value)
+        elif isinstance(obj, list):
+            for value in obj:
+                walk(value)
+
+    walk(payload)
+    return found
 
 
 def element_kind(el):
@@ -171,19 +173,20 @@ def daily_forecast(location):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_weather(region):
+    # 2024/12/10 起，F-D0047 系列查詢參數大小寫已改為 LocationName / ElementName。
     params = {
         "Authorization": API_KEY,
         "format": "JSON",
-        "locationName": region,
+        "LocationName": region,
+        "ElementName": "最高溫度,最低溫度,天氣現象",
     }
-    headers = {"User-Agent": "Mozilla/5.0 TaiwanWeatherForecast/2.0"}
+    headers = {"User-Agent": "Mozilla/5.0 TaiwanWeatherForecast/3.0"}
 
     try:
         r = requests.get(API_URL, params=params, headers=headers, timeout=30)
     except requests.exceptions.SSLError:
         r = requests.get(API_URL, params=params, headers=headers, timeout=30, verify=False)
 
-    # 某些雲端環境第一次請求可能在 TLS 驗證後才失敗，再嘗試一次相容模式。
     if not r.ok and r.status_code not in (401, 403, 404):
         try:
             r2 = requests.get(API_URL, params=params, headers=headers, timeout=30, verify=False)
@@ -204,12 +207,14 @@ def fetch_weather(region):
 
     locations = extract_locations(payload)
     if not locations:
-        raise RuntimeError("CWA API 已回應，但 records.locations 沒有可用資料")
+        raise RuntimeError("CWA API 已回應，但找不到 Location/WeatherElement 資料")
 
     wanted = norm_name(region)
     exact = [x for x in locations if norm_name(x.get("locationName") or x.get("LocationName")) == wanted]
-    location = exact[0] if exact else locations[0]
-    return location
+    if not exact:
+        available = [norm_name(x.get("locationName") or x.get("LocationName")) for x in locations]
+        raise RuntimeError(f"API 有資料，但找不到 {region}（回傳地區數：{len(available)}）")
+    return exact[0]
 
 
 region = st.selectbox("選擇縣市", REGIONS, index=REGIONS.index("彰化縣"))
@@ -226,9 +231,8 @@ try:
     location = fetch_weather(region)
     forecast = daily_forecast(location)
     if not forecast:
-        raise RuntimeError("API 連線成功，但無法解析 MaxT / MinT / Wx")
+        raise RuntimeError("API 連線成功，但無法解析最高溫度 / 最低溫度 / 天氣現象")
 except Exception as exc:
-    # 不顯示 requests 原始 URL，避免 Authorization 參數被印出。
     st.error(f"目前無法取得中央氣象署資料：{str(exc)}")
     st.stop()
 
