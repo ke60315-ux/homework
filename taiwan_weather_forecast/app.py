@@ -1,5 +1,7 @@
 import streamlit as st
 import requests
+import ssl
+from requests.adapters import HTTPAdapter
 from datetime import datetime
 
 st.set_page_config(
@@ -299,9 +301,31 @@ def daily_forecast(location):
         })
     return result
 
+class RelaxedStrictTLSAdapter(HTTPAdapter):
+    """Keep normal TLS verification, but disable OpenSSL X509 strict mode.
+
+    Python 3.13 may enable VERIFY_X509_STRICT by default. Some otherwise valid
+    certificate chains used by public-sector sites can fail that stricter check
+    with "Missing Subject Key Identifier". We keep certificate and hostname
+    verification enabled and only remove the strict flag.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self._ssl_context = ssl.create_default_context()
+        if hasattr(ssl, "VERIFY_X509_STRICT"):
+            self._ssl_context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+        super().__init__(*args, **kwargs)
+
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        pool_kwargs["ssl_context"] = self._ssl_context
+        return super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_weather():
-    response = requests.get(
+    session = requests.Session()
+    session.mount("https://", RelaxedStrictTLSAdapter())
+    response = session.get(
         API_URL,
         params={"Authorization": API_KEY, "format": "JSON"},
         timeout=20,
