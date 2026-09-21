@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import TaiwanMap, { REGION_CENTERS } from '../components/TaiwanMap';
 
-const REGIONS = Object.keys(REGION_CENTERS);
+const REGION_GROUPS = [
+  { label: '北部', items: ['臺北市','新北市','基隆市','桃園市','新竹市','新竹縣','宜蘭縣'] },
+  { label: '中部', items: ['苗栗縣','臺中市','彰化縣','南投縣','雲林縣'] },
+  { label: '南部', items: ['嘉義市','嘉義縣','臺南市','高雄市','屏東縣'] },
+  { label: '東部', items: ['花蓮縣','臺東縣'] },
+  { label: '離島', items: ['澎湖縣','金門縣','連江縣'] },
+];
+
+const REGIONS = REGION_GROUPS.flatMap((group) => group.items);
 
 function iconFor(wx) {
   const text = String(wx || '');
@@ -33,15 +41,15 @@ function TemperatureChart({ data }) {
   return (
     <svg className="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="一週溫度趨勢">
       {[0.25, 0.5, 0.75].map((r) => (
-        <line key={r} x1="20" x2="600" y1={height * r} y2={height * r} stroke="rgba(120,220,255,.10)" />
+        <line key={r} x1="20" x2="600" y1={height * r} y2={height * r} stroke="rgba(24,110,135,.12)" />
       ))}
-      <path d={path('max')} fill="none" stroke="#39e7ff" strokeWidth="3" strokeLinecap="round" />
-      <path d={path('min')} fill="none" stroke="#8b7cff" strokeWidth="3" strokeLinecap="round" />
+      <path d={path('max')} fill="none" stroke="#008db8" strokeWidth="3" strokeLinecap="round" />
+      <path d={path('min')} fill="none" stroke="#6e63d9" strokeWidth="3" strokeLinecap="round" />
       {valid.map((d, i) => (
         <g key={d.date}>
-          <circle cx={x(i)} cy={y(d.max)} r="4" fill="#39e7ff" />
-          <circle cx={x(i)} cy={y(d.min)} r="4" fill="#8b7cff" />
-          <text x={x(i)} y={height - 7} textAnchor="middle" fill="#7198aa" fontSize="11">{d.date.slice(5)}</text>
+          <circle cx={x(i)} cy={y(d.max)} r="4" fill="#008db8" />
+          <circle cx={x(i)} cy={y(d.min)} r="4" fill="#6e63d9" />
+          <text x={x(i)} y={height - 7} textAnchor="middle" fill="#587383" fontSize="11">{d.date.slice(5)}</text>
         </g>
       ))}
     </svg>
@@ -100,21 +108,47 @@ export default function Home() {
         <div className="hero-grid">
           <div>
             <div className="brand-kicker">NATIONAL WEATHER COMMAND CENTER</div>
-            <h2 style={{fontSize:'clamp(1.35rem,2.5vw,2rem)', margin:'8px 0'}}>全台 22 縣市 GIS 氣象監控</h2>
-            <div className="hero-copy">直接串接中央氣象署一週預報，透過 Vercel Serverless API 保護 CWA API Key。可由下拉選單或 GIS 地圖直接切換臺中市、彰化縣與全台各縣市。</div>
+            <h2 className="hero-title">全台 22 縣市 GIS 氣象監控</h2>
+            <div className="hero-copy">縣市切換改為接近中央氣象署「快速地點搜尋 / 選擇縣市」的操作方式，並保留 GIS 地圖與一週預報分析。</div>
           </div>
-          <div className="control-box">
-            <div className="control-label">SELECT REGION / 縣市選擇</div>
-            <select value={region} onChange={(e) => setRegion(e.target.value)}>
-              {REGIONS.map((name) => <option key={name}>{name}</option>)}
-            </select>
-            <div className="quick-row">
-              {['臺中市','彰化縣','臺北市','高雄市'].map((name) => (
-                <button key={name} className={`quick-btn ${region === name ? 'active' : ''}`} onClick={() => setRegion(name)}>{name}</button>
-              ))}
-              <button className="quick-btn" onClick={() => loadWeather(region)}>↻ 更新資料</button>
+          <div className="control-box compact-control">
+            <div className="control-label">快速地點搜尋</div>
+            <div className="select-row">
+              <span>選擇縣市</span>
+              <select value={region} onChange={(e) => setRegion(e.target.value)}>
+                {REGIONS.map((name) => <option key={name}>{name}</option>)}
+              </select>
+              <button className="refresh-btn" onClick={() => loadWeather(region)}>↻ 更新</button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="county-selector" aria-label="全台縣市選擇">
+        <div className="selector-head">
+          <div>
+            <div className="selector-eyebrow">快速地點搜尋</div>
+            <h3>選擇縣市</h3>
+          </div>
+          <div className="selected-badge">目前：{region}</div>
+        </div>
+        <div className="region-groups">
+          {REGION_GROUPS.map((group) => (
+            <div className="region-group" key={group.label}>
+              <div className="region-label">{group.label}</div>
+              <div className="county-grid">
+                {group.items.map((name) => (
+                  <button
+                    key={name}
+                    className={`county-btn ${region === name ? 'active' : ''}`}
+                    onClick={() => setRegion(name)}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -147,7 +181,7 @@ export default function Home() {
             </div>
 
             <div className="chart-wrap">
-              <div className="chart-title">TEMPERATURE TREND // 青：最高溫　紫：最低溫</div>
+              <div className="chart-title">TEMPERATURE TREND // 藍：最高溫　紫：最低溫</div>
               <TemperatureChart data={data?.forecast || []} />
             </div>
 
