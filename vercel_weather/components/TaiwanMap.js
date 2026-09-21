@@ -34,7 +34,7 @@ export default function TaiwanMap({ selected, onSelect }) {
           maxZoom: 13,
         }).setView([23.7, 121.0], 7);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
           subdomains: 'abcd',
           maxZoom: 19,
           attribution: '&copy; OpenStreetMap &copy; CARTO'
@@ -48,12 +48,12 @@ export default function TaiwanMap({ selected, onSelect }) {
         const active = name === selected;
         const marker = L.circleMarker([lat, lng], {
           radius: active ? 11 : 6,
-          color: active ? '#39e7ff' : '#697bff',
+          color: active ? '#0787ad' : '#6a74c9',
           weight: active ? 3 : 1.5,
-          fillColor: active ? '#39e7ff' : '#4b5bdc',
-          fillOpacity: active ? 0.78 : 0.42,
+          fillColor: active ? '#19b5d8' : '#7b84d8',
+          fillOpacity: active ? 0.82 : 0.48,
         }).addTo(layerRef.current);
-        marker.bindTooltip(name, { direction: 'top', opacity: .92 });
+        marker.bindTooltip(name, { direction: 'top', opacity: .95 });
         marker.on('click', () => onSelect?.(name));
       });
 
