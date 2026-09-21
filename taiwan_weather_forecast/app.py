@@ -1,11 +1,12 @@
 import streamlit as st
 import requests
 import urllib3
+import pandas as pd
 
 st.set_page_config(page_title="Taiwan Weather Forecast", page_icon="🌿", layout="wide")
 
 # CWA 在部分雲端 Python/OpenSSL 環境會遇到憑證鏈相容問題。
-# 這裡只針對固定的中央氣象署官方 API 網域使用相容模式。
+# 正常驗證失敗時，僅針對固定的中央氣象署官方網域使用相容模式重試。
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.markdown("""
@@ -23,7 +24,7 @@ st.markdown("""
 }
 .hero-title {font-family:Georgia,"Noto Serif TC",serif;font-size:38px;font-weight:700;margin:0 0 8px 0;}
 .hero-kicker {font-size:12px;letter-spacing:1.6px;opacity:.88;margin-bottom:7px;}
-.hero-text {font-size:15px;line-height:1.8;opacity:.95;max-width:800px;}
+.hero-text {font-size:15px;line-height:1.8;opacity:.95;max-width:760px;}
 [data-testid="stMetric"] {background:rgba(255,255,255,.92);border:1px solid #dce7db;border-radius:18px;padding:16px;box-shadow:0 10px 24px rgba(90,120,90,.07);}
 .weather-card {background:rgba(255,255,255,.9);border:1px solid #dce7db;border-radius:20px;padding:22px;text-align:center;min-height:245px;}
 .weather-icon {font-size:58px;margin:8px 0;}
@@ -42,19 +43,17 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-API_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-C0032-005"
+# F-C0032-005 目前在 REST API 會回 404，因此改用仍在提供的一週鄉鎮/縣市預報資料集。
+API_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-D0047-091"
+DATASET_ID = "F-D0047-091"
 
 try:
-    API_KEY = str(st.secrets["CWA_API_KEY"]).strip()
+    API_KEY = st.secrets["CWA_API_KEY"]
 except Exception:
     st.error("尚未設定 CWA_API_KEY。請到 Streamlit Cloud → App settings → Secrets 設定。")
     st.stop()
 
-if not API_KEY:
-    st.error("CWA_API_KEY 是空白的，請重新設定 Streamlit Secrets。")
-    st.stop()
-
-REGION_ORDER = [
+REGIONS = [
     "臺北市","新北市","基隆市","桃園市","新竹市","新竹縣","苗栗縣","臺中市",
     "彰化縣","南投縣","雲林縣","嘉義市","嘉義縣","臺南市","高雄市","屏東縣",
     "宜蘭縣","花蓮縣","臺東縣","澎湖縣","金門縣","連江縣"
@@ -71,150 +70,91 @@ def icon_for(wx):
     return "🌿"
 
 
-def _collect_locations(container, output):
-    """支援 CWA REST API 新舊兩種 records.locations 結構。"""
-    if isinstance(container, dict):
-        direct = container.get("location")
-        if isinstance(direct, list):
-            output.extend(x for x in direct if isinstance(x, dict))
-
-        nested = container.get("locations")
-        if isinstance(nested, list):
-            for group in nested:
-                _collect_locations(group, output)
-        elif isinstance(nested, dict):
-            _collect_locations(nested, output)
-    elif isinstance(container, list):
-        for item in container:
-            _collect_locations(item, output)
+def norm_name(s):
+    return str(s or "").replace("台", "臺")
 
 
-def get_locations(payload):
-    output = []
-    if not isinstance(payload, dict):
-        return output
-
-    _collect_locations(payload.get("records", {}), output)
-
-    cwa = payload.get("cwaopendata", {})
-    if isinstance(cwa, dict):
-        _collect_locations(cwa.get("dataset", {}), output)
-
-    # 依縣市名稱去重
-    result = {}
-    for loc in output:
-        name = loc.get("locationName") or loc.get("LocationName")
-        if name and name not in result:
-            result[name] = loc
-    return list(result.values())
+def extract_locations(payload):
+    records = payload.get("records", {}) if isinstance(payload, dict) else {}
+    groups = records.get("locations", [])
+    if isinstance(groups, dict):
+        groups = [groups]
+    out = []
+    if isinstance(groups, list):
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            locs = group.get("location", [])
+            if isinstance(locs, dict):
+                locs = [locs]
+            if isinstance(locs, list):
+                out.extend([x for x in locs if isinstance(x, dict)])
+    return out
 
 
-def weather_element_name(el):
-    return el.get("elementName") or el.get("ElementName") or ""
-
-
-def time_items(el):
-    value = el.get("time") or el.get("Time") or []
-    return value if isinstance(value, list) else []
-
-
-def start_time(item):
-    return item.get("startTime") or item.get("StartTime") or item.get("dataTime") or item.get("DataTime") or ""
-
-
-def kind_of(name):
-    n = str(name)
-    low = n.lower()
-    if n == "Wx" or "天氣" in n or "weather" in low: return "wx"
-    if n == "MaxT" or "最高" in n or "max" in low: return "max"
-    if n == "MinT" or "最低" in n or "min" in low: return "min"
+def element_kind(el):
+    name = str(el.get("elementName") or el.get("ElementName") or "")
+    desc = str(el.get("description") or el.get("Description") or "")
+    text = name + " " + desc
+    low = text.lower()
+    if name == "MaxT" or "最高溫" in text or "maxt" in low or "maximum" in low:
+        return "max"
+    if name == "MinT" or "最低溫" in text or "mint" in low or "minimum" in low:
+        return "min"
+    if name == "Wx" or "天氣現象" in text or "weather" in low:
+        return "wx"
     return None
 
 
-def candidate_values(item):
-    """F-C0032-005 常用 elementValue.value；舊格式則可能用 parameterName。"""
-    values = []
-
-    ev = item.get("elementValue", item.get("ElementValue"))
-    if isinstance(ev, dict):
-        ev = [ev]
+def first_element_value(item):
+    ev = item.get("elementValue", item.get("ElementValue", {}))
     if isinstance(ev, list):
-        for obj in ev:
-            if not isinstance(obj, dict):
-                continue
-            for key in (
-                "value", "Value", "Weather", "weather", "weatherDescription",
-                "MaxTemperature", "MinTemperature", "Temperature", "temperature"
-            ):
-                value = obj.get(key)
-                if value not in (None, ""):
-                    values.append(value)
-
-    param = item.get("parameter", item.get("Parameter"))
-    if isinstance(param, dict):
-        param = [param]
-    if isinstance(param, list):
-        for obj in param:
-            if not isinstance(obj, dict):
-                continue
-            for key in ("parameterName", "ParameterName", "value", "Value"):
-                value = obj.get(key)
-                if value not in (None, ""):
-                    values.append(value)
-
-    return values
-
-
-def read_value(item, kind):
-    values = candidate_values(item)
-    if not values:
-        return ""
-
-    if kind in ("max", "min"):
-        for value in values:
-            try:
-                return float(str(value).strip())
-            except (TypeError, ValueError):
-                pass
-        return ""
-
-    # Wx 有時同時含「天氣文字」與「天氣代碼」，優先取非純數字內容。
-    for value in values:
-        text = str(value).strip()
-        if text and not text.replace(".", "", 1).isdigit():
-            return text
-    return str(values[0]).strip()
+        ev = ev[0] if ev else {}
+    if not isinstance(ev, dict):
+        return None
+    for key in [
+        "value", "Value", "MaxTemperature", "MinTemperature", "Temperature",
+        "Weather", "weather", "weatherDescription", "WeatherDescription"
+    ]:
+        if key in ev and ev[key] not in (None, ""):
+            return ev[key]
+    for value in ev.values():
+        if value not in (None, ""):
+            return value
+    return None
 
 
 def daily_forecast(location):
     elements = location.get("weatherElement") or location.get("WeatherElement") or []
-    if not isinstance(elements, list):
-        return []
-
+    if isinstance(elements, dict):
+        elements = [elements]
     days = {}
+
     for el in elements:
         if not isinstance(el, dict):
             continue
-        kind = kind_of(weather_element_name(el))
+        kind = element_kind(el)
         if not kind:
             continue
-
-        for item in time_items(el):
+        times = el.get("time") or el.get("Time") or []
+        if isinstance(times, dict):
+            times = [times]
+        for item in times:
             if not isinstance(item, dict):
                 continue
-            raw_time = start_time(item)
-            day = str(raw_time)[:10] if raw_time else ""
+            start = item.get("startTime") or item.get("StartTime") or item.get("dataTime") or item.get("DataTime")
+            day = str(start or "")[:10]
             if not day:
                 continue
-
             days.setdefault(day, {"日期": day, "最高溫": [], "最低溫": [], "天氣": []})
-            value = read_value(item, kind)
-
-            if kind == "max" and isinstance(value, (int, float)):
-                days[day]["最高溫"].append(float(value))
-            elif kind == "min" and isinstance(value, (int, float)):
-                days[day]["最低溫"].append(float(value))
-            elif kind == "wx" and value:
+            value = first_element_value(item)
+            if kind in ("max", "min"):
+                try:
+                    number = float(value)
+                    days[day]["最高溫" if kind == "max" else "最低溫"].append(number)
+                except (TypeError, ValueError):
+                    pass
+            elif kind == "wx" and value not in (None, ""):
                 days[day]["天氣"].append(str(value))
 
     result = []
@@ -230,98 +170,66 @@ def daily_forecast(location):
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_weather():
-    # CWA 官方文件支援把 Authorization 放在 HTTP header。
-    # 這樣 API Key 不會出現在網址與 requests 錯誤訊息中。
-    headers = {
+def fetch_weather(region):
+    params = {
         "Authorization": API_KEY,
-        "Accept": "application/json",
-        "User-Agent": "TaiwanWeatherForecast/1.0",
+        "format": "JSON",
+        "locationName": region,
     }
+    headers = {"User-Agent": "Mozilla/5.0 TaiwanWeatherForecast/2.0"}
 
     try:
-        response = requests.get(
-            API_URL,
-            params={"format": "JSON"},
-            headers=headers,
-            timeout=30,
-            verify=False,
-        )
-    except requests.exceptions.Timeout:
-        raise RuntimeError("連線 CWA 逾時")
-    except requests.exceptions.ConnectionError:
-        raise RuntimeError("無法連線 CWA 主機")
-    except requests.exceptions.RequestException:
-        raise RuntimeError("CWA 網路連線失敗")
+        r = requests.get(API_URL, params=params, headers=headers, timeout=30)
+    except requests.exceptions.SSLError:
+        r = requests.get(API_URL, params=params, headers=headers, timeout=30, verify=False)
 
-    if response.status_code in (401, 403):
+    # 某些雲端環境第一次請求可能在 TLS 驗證後才失敗，再嘗試一次相容模式。
+    if not r.ok and r.status_code not in (401, 403, 404):
+        try:
+            r2 = requests.get(API_URL, params=params, headers=headers, timeout=30, verify=False)
+            if r2.ok:
+                r = r2
+        except Exception:
+            pass
+
+    if r.status_code in (401, 403):
         raise RuntimeError("CWA API Key 驗證失敗")
-    if response.status_code != 200:
-        raise RuntimeError(f"CWA API HTTP {response.status_code}")
+    if r.status_code == 404:
+        raise RuntimeError(f"CWA 資料集 {DATASET_ID} HTTP 404")
+    r.raise_for_status()
 
-    try:
-        payload = response.json()
-    except ValueError:
-        raise RuntimeError("CWA 回應不是 JSON")
-
-    if not isinstance(payload, dict):
-        raise RuntimeError("CWA JSON 格式異常")
-
+    payload = r.json()
     if str(payload.get("success", "true")).lower() == "false":
-        result = payload.get("result", {})
-        message = ""
-        if isinstance(result, dict):
-            message = str(result.get("message") or "").strip()
-        raise RuntimeError("CWA API 回傳失敗" + (f"：{message[:80]}" if message else ""))
+        raise RuntimeError("CWA API 回傳 success=false")
 
-    return payload
+    locations = extract_locations(payload)
+    if not locations:
+        raise RuntimeError("CWA API 已回應，但 records.locations 沒有可用資料")
 
+    wanted = norm_name(region)
+    exact = [x for x in locations if norm_name(x.get("locationName") or x.get("LocationName")) == wanted]
+    location = exact[0] if exact else locations[0]
+    return location
+
+
+region = st.selectbox("選擇縣市", REGIONS, index=REGIONS.index("彰化縣"))
 
 left, right = st.columns([4, 1])
 with left:
-    st.caption("資料來源：中央氣象署 CWA Open Data · F-C0032-005")
+    st.caption(f"資料來源：中央氣象署 CWA Open Data｜資料集 {DATASET_ID}")
 with right:
     if st.button("↻ 重新抓取資料", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
 try:
-    payload = fetch_weather()
-    locations = get_locations(payload)
-except RuntimeError as exc:
-    st.error(f"目前無法取得中央氣象署資料：{exc}")
-    st.caption("API Key 不會顯示在錯誤訊息或網址中。")
-    st.stop()
-except Exception:
-    st.error("目前無法取得中央氣象署資料：發生未預期錯誤")
-    st.stop()
-
-if not locations:
-    records = payload.get("records", {}) if isinstance(payload, dict) else {}
-    locations_type = type(records.get("locations")).__name__ if isinstance(records, dict) else "unknown"
-    st.error("CWA API 已成功連線，但目前程式找不到縣市資料。")
-    st.caption(f"診斷資訊：records.locations type = {locations_type}")
-    st.stop()
-
-location_map = {
-    (loc.get("locationName") or loc.get("LocationName")): loc
-    for loc in locations
-    if (loc.get("locationName") or loc.get("LocationName"))
-}
-
-ordered = [r for r in REGION_ORDER if r in location_map] + [r for r in location_map if r not in REGION_ORDER]
-if not ordered:
-    st.error("API 已連線，但沒有可顯示的縣市名稱。")
-    st.stop()
-
-default_index = ordered.index("彰化縣") if "彰化縣" in ordered else 0
-region = st.selectbox("選擇縣市", ordered, index=default_index)
-forecast = daily_forecast(location_map[region])
-
-if not forecast:
-    element_names = [weather_element_name(e) for e in (location_map[region].get("weatherElement") or []) if isinstance(e, dict)]
-    st.error("CWA API 已連線，但預報欄位解析失敗。")
-    st.caption("收到的 weatherElement：" + ", ".join(element_names[:10]))
+    location = fetch_weather(region)
+    forecast = daily_forecast(location)
+    if not forecast:
+        raise RuntimeError("API 連線成功，但無法解析 MaxT / MinT / Wx")
+except Exception as exc:
+    # 不顯示 requests 原始 URL，避免 Authorization 參數被印出。
+    st.error(f"目前無法取得中央氣象署資料：{str(exc)}")
     st.stop()
 
 max_values = [x["最高溫"] for x in forecast if x["最高溫"] is not None]
@@ -334,15 +242,14 @@ m2.metric("本週最高溫", f"{max(max_values):.0f} °C" if max_values else "�
 m3.metric("本週最低溫", f"{min(min_values):.0f} °C" if min_values else "—")
 m4.metric("平均日溫差", f"{sum(diffs)/len(diffs):.1f} °C" if diffs else "—")
 
-left, right = st.columns([2,1], gap="large")
+left, right = st.columns([2, 1], gap="large")
 with left:
     with st.container(border=True):
         st.subheader("未來一週溫度趨勢")
-        chart_data = {
-            row["日期"][5:].replace("-", "/"): {"最高溫": row["最高溫"], "最低溫": row["最低溫"]}
-            for row in forecast
-        }
-        st.line_chart(chart_data, height=330)
+        chart_df = pd.DataFrame(
+            [{"日期": x["日期"][5:].replace("-", "/"), "最高溫": x["最高溫"], "最低溫": x["最低溫"]} for x in forecast]
+        ).set_index("日期")
+        st.line_chart(chart_df, height=330)
 
 with right:
     today = forecast[0]
@@ -354,7 +261,7 @@ with right:
       <div class="weather-icon">{icon}</div>
       <div class="weather-temp">{temp_text}</div>
       <div class="weather-desc">{today["天氣"]}</div>
-      <div class="source-box"><b>資料集：</b>F-C0032-005<br><b>縣市：</b>{region}<br><b>狀態：</b>CWA API 已連線</div>
+      <div class="source-box"><b>資料集：</b>{DATASET_ID}<br><b>縣市：</b>{region}<br><b>狀態：</b>CWA 即時資料</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -370,5 +277,3 @@ with st.container(border=True):
             "天氣": row["天氣"],
         })
     st.dataframe(table_rows, use_container_width=True, hide_index=True)
-
-st.caption("🌿 Taiwan Weather Forecast · Data provided by Central Weather Administration")
