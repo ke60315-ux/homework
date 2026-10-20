@@ -16,7 +16,7 @@
 <section class="split"><section class="panel"><h2>📋 Feature Progression — Actual Test Results</h2><div class="tablewrap"><table><thead><tr><th>k</th><th>Selected Features (newest last)</th><th>RMSE</th><th>R²</th><th>MAE</th></tr></thead><tbody id="results"></tbody></table></div></section><section class="panel"><h2>🎯 Live Prediction</h2><div id="predictInputs" class="predict"></div><div class="prediction" id="prediction">—</div><small>輸入值會套用目前選擇 k 的回歸方程式。僅供課堂示範。</small></section></section>
 <section class="panel"><h2>🧪 Reproducibility</h2><p class="status">先將資料固定亂數種子切成 80% 訓練與 20% 測試；只使用訓練資料進行 5-fold CV greedy forward feature selection；再於完整訓練集重新擬合含截距的 Ordinary Least Squares，最後用測試集計算 RMSE、R² 與 MAE。類別特徵在整體資料欄位映射為 one-hot（保留一個基準類別），不將原始 ID 當成預測特徵。每次切換資料集或輸入 CSV 都會重新計算，非預置分數。<strong>注意：</strong>交叉驗證並未巢狀測試前處理，適合作業展示而非正式模型評估。</p></section><div class="footer">DIC2 • Multiple Linear Regression Explorer · Browser-side analysis · No server upload</div></main>
 <script>
-const URLS={startup:"https://raw.githubusercontent.com/Avik-Jain/100-Days-Of-ML-Code/master/datasets/50_Startups.csv",boston:"https://raw.githubusercontent.com/selva86/datasets/master/BostonHousing.csv"};
+const URLS={startup:"./datasets/50_Startups.csv",boston:"./datasets/Boston.csv"};
 const $=id=>document.getElementById(id);let sourceRows=[],featureNames=[],matrix=[],targets=[],models=[],chosen=1,chart1,chart2,currentTarget='',originalHeaders=[];
 function status(t,isError=false){$('status').textContent=t;$('status').className='status'+(isError?' warning':'')}
 function randIndices(n){let a=Array.from({length:n},(_,i)=>i),s=20261020;for(let i=n-1;i>0;i--){s=(1664525*s+1013904223)>>>0;let j=s%(i+1);[a[i],a[j]]=[a[j],a[i]]}return a}
