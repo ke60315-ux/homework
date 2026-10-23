@@ -24,9 +24,50 @@ select,input[type="text"],input[type="number"],input[type="url"]{text-overflow:e
 .panel h2,.plot h2{line-height:1.4}
 @media(max-width:1100px){.controls{grid-template-columns:minmax(220px,1fr) minmax(270px,1.2fr)}.controls>button{grid-column:1/-1;justify-self:start}.metricrow{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.wrap{padding:16px 12px 45px}.controls{grid-template-columns:minmax(0,1fr)}.controls>button{grid-column:auto;width:100%}.split{grid-template-columns:minmax(0,1fr)}.metricrow{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:16px}.hero{padding:20px}.row{gap:8px}.row>.chip{font-size:11px}}
+
+/* STARLUX-inspired premium aviation visual refresh */
+:root{font-family:Inter,"Noto Sans TC",system-ui,sans-serif;color:#34312f;background:#f7f5f1;color-scheme:light}
+body{background:radial-gradient(ellipse at 90% 0%,#e9e0d2 0%,transparent 32%),#f7f5f1;color:#34312f}
+body:before{content:none}
+.wrap{max-width:1380px}
+.top .eyebrow{color:#987c55;letter-spacing:1.4px;text-transform:uppercase}
+h1,h2,h3{color:#33312f;letter-spacing:.3px}
+.hero{background:linear-gradient(113deg,#292725 0%,#393530 56%,#695943 100%);border:1px solid #a99470;border-radius:10px;color:#fcf7ef;box-shadow:0 12px 32px #4a3b2c27;padding:39px 34px}
+.hero:after{width:390px;height:390px;top:-135px;right:-65px;border:1px solid #d4b5877a;box-shadow:0 0 0 35px #e7c99f10,0 0 0 70px #e7c99f0a}
+.hero h2{color:#fff6e8;text-shadow:none;font-size:30px;letter-spacing:1.1px}
+.hero p{color:#e6d9c7}
+.pill{background:#ffffff12;border:1px solid #ceb78c77;color:#f0d6aa;border-radius:4px;box-shadow:none}
+.panel,.metric,.plot{background:#fffefa;border:1px solid #e6ded1;box-shadow:0 4px 19px #5145380d;border-radius:9px}
+.panel h2,.plot h2{color:#423a32}
+.panel{padding:22px}
+.field label,label{color:#746655}
+select,input[type=text],input[type=number],input[type=url]{background:#fffefa;border:1px solid #d8cbb9;color:#40372e;border-radius:5px}
+select:focus,input:focus{border-color:#b99a64;box-shadow:0 0 0 3px #b99a6424}
+button{background:#fffdf9;border:1px solid #d6c4aa;color:#655039;border-radius:5px;box-shadow:none}
+button:hover{border-color:#af8952;box-shadow:0 4px 12px #af895224}
+button.active,button.primary{background:linear-gradient(105deg,#9f7d4a,#c09c62);border-color:#b38d55;color:#fff;box-shadow:0 5px 15px #9a79402c}
+.metric{border-top:3px solid #b99a64}
+.metric:nth-child(2){border-top-color:#5b534b}
+.metric:nth-child(3){border-top-color:#c7b597}
+.metric:nth-child(4){border-top-color:#8d7b63}
+.metric:nth-child(5){border-top-color:#ae9572}
+.metric b{color:#373029}
+.metric span,.metric em{color:#867763}
+.chip{background:#f5f0e7;border:1px solid #e3d5c0;color:#80653f;border-radius:5px}
+.equation{background:#f9f5ed;border-color:#e0d0b7;border-left:4px solid #b49460;color:#5e4b30;box-shadow:none}
+th{background:#f5f0e7;color:#765f42}
+td{border-bottom-color:#eee8dc}
+tr.best{background:#f9f2e2}
+.prediction{background:linear-gradient(105deg,#332e29,#6c5842);color:#ffe6ba;border-color:#aa8755;box-shadow:none;border-radius:6px}
+.predict input[type=range]{accent-color:#b4935c}
+.status,small,.hint{color:#847a6f}
+.footer{color:#9a8c77}
+.chartbox svg polyline{stroke:#ad8a53}
+.chartbox svg circle{stroke:#fffefa}
+@media(max-width:760px){.hero{padding:24px 20px}.hero h2{font-size:24px}}
 </style></head>
-<body><main class="wrap"><div class="top"><div><div class="eyebrow">⌂ Home › Regression Analysis › Flight-ML</div><h1>✈ Flight Ticket Price Prediction</h1></div><small>人工智慧與資訊安全 • Flight-ML</small></div>
-<section class="hero"><h2>Flight Price • Feature Selection &amp; Diagnostics</h2><p>使用你上傳的 Clean_Dataset.csv 進行機票價格預測。預設展示檔為原始 300,153 筆中不同位置擷取的 1,740 筆；如需分析完整原始 CSV，請使用下方上傳功能，系統會為瀏覽器運算抽樣。</p><span class="pill">✈ Flight Price Regression</span><span class="pill">⚡ Actual OLS Training</span><span class="pill">🧪 5-Fold CV Selection</span><span class="pill">📁 User CSV / URL</span></section>
+<body><main class="wrap"><div class="top"><div><div class="eyebrow">⌂ Home › Regression Analysis › Flight-ML</div><h1>✦ Flight Ticket Price Prediction</h1></div><small>人工智慧與資訊安全 • Flight-ML</small></div>
+<section class="hero"><h2>Flight Price • Feature Selection &amp; Diagnostics</h2><p>使用你上傳的 Clean_Dataset.csv 進行機票價格預測。預設展示檔為原始 300,153 筆中不同位置擷取的 1,740 筆；如需分析完整原始 CSV，請使用下方上傳功能，系統會為瀏覽器運算抽樣。</p><span class="pill">✦ PREMIUM AVIATION ANALYTICS</span><span class="pill">⚡ Actual OLS Training</span><span class="pill">🧪 5-Fold CV Selection</span><span class="pill">📁 User CSV / URL</span></section>
 <section class="panel"><h2>⚙️ Dataset &amp; Problem Selection</h2><div class="controls"><div class="field"><label for="problem">1. Select Problem</label><select id="problem"><option value="flight">Flight Ticket Price Prediction — price</option><option value="custom">Custom Regression Dataset</option></select></div><div class="field"><label for="csvUrl">2. Enter Dataset CSV URL (需允許 CORS)</label><input id="csvUrl" type="url" placeholder="https://raw.githubusercontent.com/.../data.csv"></div><button id="load" class="primary">↻ Load Dataset</button></div><div class="row"><label>或上傳 CSV：</label><input id="upload" class="file" type="file" accept=".csv,text/csv"><label for="target">Target Column</label><select id="target" style="max-width:220px"></select><button id="run" class="primary">▶ Run Regression</button><button id="download">↓ Export Results CSV</button></div><div class="status" id="status">準備載入資料…</div></section>
 <section class="panel"><h2>🔎 Feature Selection</h2><div class="row"><span class="chip">Method: Greedy Forward Selection</span><span class="chip">Training-only 5-fold CV</span><span class="chip">Train/Test 80/20</span><span class="chip">Max 5 Selected Features</span></div><div class="row"><label>Number of Features (k)</label><div id="ks" class="row"></div></div><div class="row" id="selected"></div></section>
 <section class="metricrow" id="metrics"><div class="metric"><span>TEST RMSE</span><b>—</b><em>Lower is better</em></div><div class="metric"><span>R² SCORE</span><b>—</b></div><div class="metric"><span>ADJUSTED R²</span><b>—</b></div><div class="metric"><span>MEAN ABSOLUTE ERROR</span><b>—</b></div><div class="metric"><span>TEST SAMPLES</span><b>—</b></div></section>
